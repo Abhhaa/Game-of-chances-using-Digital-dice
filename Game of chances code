@@ -1,0 +1,273 @@
+
+COUNTER :
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+
+entity Counter is
+  port (
+    Clk, Roll: in std_logic;
+    dice1, dice2: out integer range 1 to 6;
+    Sum: out integer range 2 to 12
+  );
+end Counter;
+
+architecture Count of Counter is
+  signal Cnt1, Cnt2: integer range 1 to 6 := 1;
+  signal Seed: integer := 1; -- Seed for random number generator
+begin
+  process(Clk)
+    variable RandomNum: integer range 1 to 6;
+  begin
+    if rising_edge(Clk) then
+      if Roll = '1' then
+        -- Generate random numbers for dice rolls
+        Seed <= Seed + 1;
+        RandomNum := (Seed mod 6) + 1;
+
+       
+
+ Cnt1 <= RandomNum;
+
+        -- Increment the second counter (if needed)
+        if Cnt1 = 6 then
+          Seed <= Seed + 1; 
+          RandomNum := (Seed mod 6) + 1;
+          Cnt2 <= RandomNum;
+        else
+          Cnt2 <= 1;
+        end if;
+
+        Sum <= Cnt1 + Cnt2;
+      end if;
+    end if;
+  end process;
+  
+  dice1 <= Cnt1;
+  dice2 <= Cnt2;
+end Count;
+
+DICE BEHAVIOUR: 
+
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity Dice_Eq is
+  port(Rb, Reset, CLK: in std_logic;
+    Sum: in integer range 2 to 12;
+    Roll, Win, Lose: out std_logic);
+end Dice_Eq;
+
+architecture DiceBehave of Dice_Eq is
+  signal State, Nextstate: integer range 0 to 5;
+  signal Point: integer range 2 to 12;
+  signal Sp: std_logic;
+begin
+  process(Rb, Reset, Sum, State)
+  begin
+    Sp <= '0'; Roll <= '0'; Win <= '0'; Lose <= '0';
+    case State is
+      when 0 => if Rb = '1' then Nextstate <= 1; end if;
+      -- Additional case statements and conditions
+      -- Add comments to explain the purpose of each state
+    end case;
+  end process;
+
+  process(CLK)
+  begin
+    if CLK'event and CLK = '1' then
+      State <= Nextstate;
+      if Sp = '1' then Point <= Sum; end if;
+    end if;
+  end process;
+end DiceBehave;
+
+GAME : 
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity Game is
+  port(Rb, Reset, Clk: in bit;
+    DICE1ssd, dice2ssd: out std_logic_vector(6 downto 0);
+    SUM1ssd: out std_logic_vector(13 downto 0);
+    Win, Lose: out bit);
+end Game;
+
+architecture Play1 of Game is
+  component Counter is
+    port(
+      Clk, Roll: in bit;
+      dice1, dice2: inout integer range 1 to 6;
+      Sum: out integer range 2 to 12
+    );
+  end component;
+
+  component Dice_Eq is
+    port(
+      Rb, Reset, CLK: in bit;
+      Sum: in integer range 2 to 12;
+      Roll, Win, Lose: out bit
+    );
+  end component;
+
+  component INTEGER2BINARY is
+    Port (
+        Input_Integer : in INTEGER range 0 to 15; -- Adjust the range as needed
+        Output_Binary : out STD_LOGIC_VECTOR(3 downto 0) -- 4-bit binary representation
+    );
+	end component;
+
+  component BCD2SSD is
+    port(
+      X: in std_logic_vector(3 downto 0); -- Input BCD number
+      Y: out std_logic_vector(13 downto 0); -- Output SSD code
+      F: out std_logic -- Invalid input indicator
+    );
+  end component;
+  component bcd2ssd8 is
+    Port (
+        X : in std_logic_vector(3 downto 0); -- Input BCD number
+        Y : out std_logic_vector(6 downto 0); -- Output SSD code
+        F : out std_logic -- Invalid input indicator
+    );
+end component;
+
+  signal roll1: bit;
+  signal sum1: integer range 2 to 12;
+  signal dice_1: integer range 1 to 6;
+  signal dice_2: integer range 1 to 6;
+  signal dice_1b, dice_2b, sum_1b: std_logic_vector(3 downto 0);
+  signal F1, F2, F3: std_logic;
+begin
+  Dice: Dice_Eq port map (Rb, Reset, Clk, sum1, roll1, Win, Lose);
+  Count: Counter port map (Clk, roll1, dice_1, dice_2, sum1);
+  d_1b : INTEGER2BINARY PORT MAP (dice_1,dice_1b);
+  d_2b : INTEGER2BINARY PORT MAP (dice_2,dice_2b);
+  s_1b : INTEGER2BINARY PORT MAP (sum1 , sum_1b);
+  ssd1: bcd2ssd8 port map (dice_1b, DICE1ssd, F1);
+  ssd2: bcd2ssd8 port map (dice_2b, dice2ssd, F2);
+  ssd3: BCD2SSD port map (sum_1b, SUM1ssd, F3);
+
+end Play1;
+
+BCD2SSD1 : 
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity bcd2ssd8 is
+    Port (
+        X : in std_logic_vector(3 downto 0); -- Input BCD number
+        Y : out std_logic_vector(6 downto 0); -- Output SSD code
+        F : out std_logic -- Invalid input indicator
+    );
+end bcd2ssd8;
+
+architecture Behavioral of bcd2ssd8 is
+begin
+    process(X)
+    begin
+        F <= '0'; -- Initialize the invalid input indicator to '0'
+        case X is
+            when "0000" =>
+                Y <= "0000001"; -- 00
+            when "0001" =>
+                Y <= "1001111"; -- 01
+            when "0010" =>
+                Y <= "0010010"; -- 02
+            when "0011" =>
+                Y <= "0000110"; -- 03
+            when "0100" =>
+                Y <= "1001100"; -- 04
+            when "0101" =>
+                Y <= "0100100"; -- 05
+            when "0110" =>
+                Y <= "0100000"; -- 06
+            when "0111" =>
+                Y <= "0001111"; -- 07
+            when "1000" =>
+                Y <= "0000000"; -- 08
+            when "1001" =>
+                Y <= "0000100"; -- 09
+				when others =>
+                Y <= "1111111"; -- Invalid input, all segments off
+                F <= '1'; -- Set invalid input indicator to '1'
+        end case;
+    end process;
+end Behavioral;
+
+BCD2SSD2 : 
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity BCD2SSD is
+    Port (
+        X : in std_logic_vector(3 downto 0); -- Input BCD number
+        Y : out std_logic_vector(13 downto 0); -- Output SSD code
+        F : out std_logic -- Invalid input indicator
+    );
+end BCD2SSD;
+
+architecture Behavioral of BCD2SSD is
+begin
+    process(X)
+    begin
+        F <= '0'; -- Initialize the invalid input indicator to '0'
+        case X is
+            when "0000" =>
+                Y <= "00000010000001"; -- 00
+            when "0001" =>
+                Y <= "00000011001111"; -- 01
+            when "0010" =>
+                Y <= "00000010010010"; -- 02
+            when "0011" =>
+                Y <= "00000010000110"; -- 03
+            when "0100" =>
+                Y <= "00000011001100"; -- 04
+            when "0101" =>
+                Y <= "00000010100100"; -- 05
+            when "0110" =>
+                Y <= "00000010100000"; -- 06
+            when "0111" =>
+                Y <= "00000010001111"; -- 07
+            when "1000" =>
+                Y <= "00000010000000"; -- 08
+            when "1001" =>
+                Y <= "00000010000100"; -- 09
+	   when "1010" => 
+	        Y <= "00000011001111"; -- 10
+           when "1011" => 
+	        Y <= "10011111001111"; -- 11
+	   when "1100" => 
+	        Y <= "10011110010010"; -- 12
+					 
+            when others =>
+                Y <= "11111111111111"; -- Invalid input, all segments off
+                F <= '1'; -- Set invalid input indicator to '1'
+        end case;
+    end process;
+end Behavioral;
+
+INTEGER TO BINARY : 
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity INTEGER2BINARY is
+    Port (
+        Input_Integer : in INTEGER range 0 to 15; -- Adjust the range as needed
+        Output_Binary : out STD_LOGIC_VECTOR(3 downto 0)); -- 4-bit binary representation
+end INTEGER2BINARY;
+
+architecture Behavioral of INTEGER2BINARY is
+begin
+    process(Input_Integer)
+    begin
+        Output_Binary <= std_logic_vector(to_unsigned(Input_Integer, 4)); -- Convert integer to binary
+    end process;
+end Behavioral;
+
